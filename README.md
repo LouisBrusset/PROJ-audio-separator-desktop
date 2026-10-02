@@ -1,5 +1,7 @@
 # Audio Separator Local
 
+![Capture d'écran d'Audio Separator Local](docs/screenshot.png)
+
 Petite application graphique pour séparer la voix et l'instrumentale de fichiers audio,
 en local et sur GPU, grâce à [audio-separator](https://github.com/nomadkaraoke/python-audio-separator).
 
