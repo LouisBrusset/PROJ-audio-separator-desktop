@@ -4,3 +4,6 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Chemin d'un venv externe à réutiliser, spécifique à la machine (voir .venv-path.example)
+.venv-path

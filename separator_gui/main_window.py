@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QSpinBox,
     QStyle,
     QVBoxLayout,
     QWidget,
@@ -34,6 +35,7 @@ from separator_gui.config import (
     APP_ID,
     APP_NAME,
     AUDIO_EXTENSIONS,
+    DEFAULT_MIN_BITRATE_KBPS,
     ICON_PATH,
     MODELS,
     OUTPUT_FORMATS,
@@ -41,6 +43,7 @@ from separator_gui.config import (
     collect_audio_files,
     default_output_dir,
     music_dir,
+    probe_bitrate_kbps,
 )
 from separator_gui.worker import SeparationWorker
 
@@ -169,6 +172,17 @@ class MainWindow(QMainWindow):
 
         self.skip_check = QCheckBox("Ignorer les morceaux déjà séparés dans le dossier de sortie")
         form.addRow("", self.skip_check)
+
+        self.bitrate_spin = QSpinBox()
+        self.bitrate_spin.setRange(0, 2000)
+        self.bitrate_spin.setSingleStep(32)
+        self.bitrate_spin.setValue(DEFAULT_MIN_BITRATE_KBPS)
+        self.bitrate_spin.setSuffix(" kbps")
+        self.bitrate_spin.setToolTip(
+            "Avant de lancer la séparation, prévient si le débit d'un fichier source\n"
+            "est inférieur à cette valeur (0 pour désactiver la vérification)"
+        )
+        form.addRow("Alerte si bitrate inférieur à :", self.bitrate_spin)
         root.addWidget(self.params_box)
 
         # Dossier de sortie
@@ -237,6 +251,7 @@ class MainWindow(QMainWindow):
 
         self.recursive_check.setChecked(s.value("recursive", True, type=bool))
         self.skip_check.setChecked(s.value("skip_existing", True, type=bool))
+        self.bitrate_spin.setValue(int(s.value("min_bitrate_kbps", DEFAULT_MIN_BITRATE_KBPS)))
 
     def _save_settings(self) -> None:
         s = self.settings
@@ -246,6 +261,7 @@ class MainWindow(QMainWindow):
         s.setValue("format", self.format_combo.currentText())
         s.setValue("recursive", self.recursive_check.isChecked())
         s.setValue("skip_existing", self.skip_check.isChecked())
+        s.setValue("min_bitrate_kbps", self.bitrate_spin.value())
 
     def _model_filename(self) -> str:
         text = self.model_combo.currentText().strip()
@@ -335,10 +351,41 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ séparation
 
+    def _confirm_bitrates(self, files: list[Path]) -> bool:
+        """Prévient si des fichiers sont sous le seuil de débit. Renvoie False si l'utilisateur annule."""
+        threshold = self.bitrate_spin.value()
+        if threshold <= 0:
+            return True
+
+        low_quality = []
+        for track in files:
+            bitrate = probe_bitrate_kbps(track)
+            if bitrate is not None and bitrate < threshold:
+                low_quality.append((track, bitrate))
+
+        if not low_quality:
+            return True
+
+        lines = "\n".join(f"• {track.name} — {bitrate} kbps" for track, bitrate in low_quality)
+        message = (
+            f"{len(low_quality)} morceau(x) ont un débit inférieur à {threshold} kbps :\n\n"
+            f"{lines}\n\n"
+            "Continuer la séparation malgré tout ?"
+        )
+        box = QMessageBox(QMessageBox.Icon.Warning, APP_NAME, message, parent=self)
+        confirm_button = box.addButton("Confirmer", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Annuler", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(confirm_button)
+        box.exec()
+        return box.clickedButton() is confirm_button
+
     def start(self) -> None:
         files = collect_audio_files(self.sources, self.recursive_check.isChecked())
         if not files:
             QMessageBox.information(self, APP_NAME, "Aucun fichier audio à traiter. Ajoute des fichiers ou un dossier.")
+            return
+
+        if not self._confirm_bitrates(files):
             return
 
         output_dir = self._output_dir()

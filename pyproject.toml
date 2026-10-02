@@ -1,5 +1,5 @@
 [project]
-name = "audio-separator-local"
+name = "PROJ-audio-separator-desktop"
 version = "0.1.0"
 description = "Petite application graphique pour séparer voix et instrumentale avec audio-separator"
 readme = "README.md"
@@ -14,7 +14,7 @@ dependencies = [
 
 # gui-scripts : identique à scripts sous Linux, mais sans fenêtre console sous Windows
 [project.gui-scripts]
-audio-separator-local = "separator_gui.main:main"
+PROJ-audio-separator-desktop = "separator_gui.main:main"
 
 [build-system]
 requires = ["hatchling"]

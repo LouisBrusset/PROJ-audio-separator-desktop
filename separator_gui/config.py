@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths
 
 APP_NAME = "Audio Separator Local"
-APP_ID = "audio-separator-local"
+APP_ID = "PROJ-audio-separator-desktop"
 
 ICON_PATH = Path(__file__).resolve().parent / "assets" / f"{APP_ID}.svg"
 
@@ -34,6 +36,9 @@ STEMS = [
 
 OUTPUT_FORMATS = ["mp3", "flac", "wav"]
 
+# Seuil d'alerte par défaut : en-dessous, on prévient que le fichier source est de basse qualité
+DEFAULT_MIN_BITRATE_KBPS = 320
+
 
 def music_dir() -> Path:
     """Dossier Musique de l'utilisateur (~/Musique sous Fedora en français)."""
@@ -42,7 +47,7 @@ def music_dir() -> Path:
 
 
 def default_output_dir() -> Path:
-    return music_dir() / "audio_separator_local"
+    return music_dir() / APP_ID
 
 
 def is_audio_file(path: Path) -> bool:
@@ -61,6 +66,35 @@ def collect_audio_files(sources: list[Path], recursive: bool = True) -> list[Pat
                 if is_audio_file(path):
                     found[path.resolve()] = None
     return list(found)
+
+
+def probe_bitrate_kbps(path: Path) -> int | None:
+    """Débit du fichier audio en kbps via ffprobe, ou None si indisponible."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=bit_rate:format=bit_rate",
+                "-of", "json",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+        data = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return None
+
+    streams = data.get("streams") or [{}]
+    bit_rate = streams[0].get("bit_rate") or data.get("format", {}).get("bit_rate")
+    try:
+        return int(bit_rate) // 1000
+    except (TypeError, ValueError):
+        return None
 
 
 def output_names(track: Path) -> dict[str, str]:

@@ -1,0 +1,4 @@
+Chemin absolu d'un venv existant à réutiliser (complété par "uv sync" au lieu d'en créer un nouveau).
+
+Pour l'activer : copie ce fichier en ".venv-path" (sans ".example") et mets le chemin voulu, une seule ligne.
+Si ".venv-path" est absent ou vide, install.sh crée un ".venv" classique dans le dossier du projet.
